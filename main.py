@@ -17,7 +17,7 @@ MUTATION_RATE = 0.15
 CROSSOVER_RATE = 0.7
 TOURNAMENT_SELECTION_SIZE = 5
 NUMB_OF_ELITE_TIMETABLES = 2
-MAX_GENERATIONS = 100
+MAX_GENERATIONS = 200
 
 DATABASE_PATH = 'db_and_export/timetable_database.db'
 EXPORT_FILE_PATH = 'db_and_export/final_timetable.txt'
@@ -37,7 +37,7 @@ def run() -> None:
     print("Data imported from the db_and_export.")
 
     generation_number = 0
-    FITNESS_FUNCTION = "gaps" # can also be "combined", "conflicts"
+    FITNESS_FUNCTION = "conflicts" # can be "combined", "conflicts", "gaps"
 
     # Step 4: Set up and run genetic algorithm
     genetic_algorithm = GenAlg(

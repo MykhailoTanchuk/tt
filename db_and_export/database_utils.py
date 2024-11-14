@@ -33,8 +33,8 @@ def import_data_from_db(database_path: str) -> Data:
 
     # Import courses
     courses = [
-        Course(number=row[0], name=row[1], max_number_of_students=row[2], course_type=row[3])
-        for row in cursor.execute("SELECT number, name, max_students, course_type FROM courses")
+        Course(number=row[0], name=row[1], max_number_of_students=row[2], course_type=row[3], hours_per_week = row[4])
+        for row in cursor.execute("SELECT number, name, max_students, course_type, hours_per_week FROM courses")
     ]
 
     # Import student groups
@@ -65,12 +65,6 @@ def import_data_from_db(database_path: str) -> Data:
 
 
 def export_data_to_db(data: Data, database_path: str) -> None:
-    """
-    Exports data from a Data object to an SQLite db_and_export.
-
-    :param data: Data object with data to export.
-    :param database_path: Path to the SQLite db_and_export.
-    """
     connection = sqlite3.connect(database_path)
     cursor = connection.cursor()
 
@@ -88,7 +82,7 @@ def export_data_to_db(data: Data, database_path: str) -> None:
             (classroom.number, classroom.seating_capacity)
         )
 
-    # Export instructors with consideration of max_hours_per_week
+    # Export teachers with consideration of max_hours_per_week
     for teacher in data.teachers:
         courses_str = ",".join(str(course) for course in teacher.courses)
         cursor.execute(
@@ -96,11 +90,11 @@ def export_data_to_db(data: Data, database_path: str) -> None:
             (teacher.id, teacher.name, courses_str, teacher.max_hours_per_week)
         )
 
-    # Export courses
+    # Export courses with hours_per_week
     for course in data.courses:
         cursor.execute(
-            "INSERT INTO courses (number, name, max_students, course_type) VALUES (?, ?, ?, ?)",
-            (course.number, course.name, course.max_number_of_students, course.course_type)
+            "INSERT INTO courses (number, name, max_students, course_type, hours_per_week) VALUES (?, ?, ?, ?, ?)",
+            (course.number, course.name, course.max_number_of_students, course.course_type, course.hours_per_week)
         )
 
     # Export student groups
@@ -184,11 +178,6 @@ def export_timetable_to_txt(timetable: Timetable, file_path: str) -> None:
 
 
 def create_database_schema(database_path: str) -> None:
-    """
-    Creates the SQLite db_and_export schema for storing data.
-
-    :param database_path: Path to the SQLite db_and_export.
-    """
     connection = sqlite3.connect(database_path)
     cursor = connection.cursor()
 
@@ -212,7 +201,8 @@ def create_database_schema(database_path: str) -> None:
         number INTEGER PRIMARY KEY,
         name TEXT,
         max_students INTEGER,
-        course_type TEXT -- lecture or practical
+        course_type TEXT, -- lecture or practical
+        hours_per_week INTEGER -- Number of hours per week for each course
     )
     ''')
     cursor.execute('''
@@ -234,3 +224,4 @@ def create_database_schema(database_path: str) -> None:
     connection.commit()
     connection.close()
     print(f"Database schema created at {database_path}")
+

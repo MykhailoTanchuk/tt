@@ -7,6 +7,7 @@ from output_utils import get_random_number
 from population import Population
 from timetable import Timetable
 from models.time_slot import TimeSlot
+from models.study_session import StudySession
 
 
 class GenAlg:
@@ -102,23 +103,53 @@ class GenAlg:
         return new_population
 
     def mutate_timetable(self, timetable: Timetable) -> Timetable:
-        """Виконує нетривіальну мутацію для одного розкладу."""
+        """Виконує мутацію для одного розкладу, включаючи нові типи мутацій."""
         mutated_timetable = deepcopy(timetable)
 
         if self.mutation_rate > get_random_number():
             # Випадково обираємо тип мутації
             mutation_type = get_random_number()
-            if mutation_type < 0.33:
-                # Swap Mutation - обмін часових слотів між заняттями
+            if mutation_type < 0.2:
                 mutated_timetable = self.swap_mutation(mutated_timetable)
-            elif mutation_type < 0.66:
-                # Inversion Mutation - інвертування порядку занять
+            elif mutation_type < 0.4:
                 mutated_timetable = self.inversion_mutation(mutated_timetable)
-            else:
-                # Scramble Mutation - перемішування часових слотів
+            elif mutation_type < 0.6:
                 mutated_timetable = self.scramble_mutation(mutated_timetable)
+            elif mutation_type < 0.8:
+                mutated_timetable = self.remove_session_mutation(mutated_timetable)
+            else:
+                mutated_timetable = self.add_session_mutation(mutated_timetable)
 
         return mutated_timetable
+
+    def remove_session_mutation(self, timetable: Timetable) -> Timetable:
+        """Видаляє випадкове заняття з розкладу."""
+        if timetable.study_sessions:
+            idx_to_remove = int(get_random_number() * len(timetable.study_sessions))
+            del timetable.study_sessions[idx_to_remove]
+        return timetable
+
+    def add_session_mutation(self, timetable: Timetable) -> Timetable:
+        """Додає випадкове нове заняття в розклад."""
+        # Вибираємо випадковий курс, групу, викладача і часовий слот
+        new_course = self._get_random_item(self.data.courses)
+        new_group = self._get_random_item(self.data.groups)
+        new_teacher = self._get_random_item(self.data.teachers)
+        new_room = self._get_random_item(self.data.classrooms)
+        new_time_slot = self._get_random_item(self.data.time_slots)
+
+        # Створюємо нове заняття і призначаємо атрибути
+        new_study_session = StudySession(id=len(timetable.study_sessions) + 1,
+                                         course=new_course,
+                                         student_group=new_group)
+        new_study_session.teacher = new_teacher
+        new_study_session.classroom = new_room
+        new_study_session.time_slot = new_time_slot
+
+        # Додаємо нове заняття в розклад
+        timetable.study_sessions.append(new_study_session)
+
+        return timetable
 
     def swap_mutation(self, timetable: Timetable) -> Timetable:
         """Обмін часових слотів двох випадкових занять."""
@@ -230,13 +261,8 @@ class GenAlg:
                 # З більшою ймовірністю змінюємо викладача або аудиторію
                 mutation_choice = get_random_number()
                 if mutation_choice < 0.5:
-                    # Міняємо викладача на іншого, здатного вести цей курс
-                    suitable_teachers = [
-                        teacher for teacher in self.data.teachers
-                        if teacher.can_teach(study_session_to_mutate.course.number)
-                    ]
-                    if suitable_teachers:
-                        study_session_to_mutate.teacher = self._get_random_item(suitable_teachers)
+                    # Міняємо викладача на випадкового
+                    study_session_to_mutate.teacher = self._get_random_item(self.data.teachers)
                 else:
                     # Міняємо аудиторію на випадкову
                     study_session_to_mutate.classroom = self._get_random_item(self.data.classrooms)
@@ -286,7 +312,3 @@ class GenAlg:
                 for _ in range(expected_size - current_size):
                     new_timetable = Timetable(data=self.data, fitness_function=self.fitness_function).initialize()
                     population.timetables.append(new_timetable)
-
-
-# fitness time кожен заняття на тиждень  - має знаходитись різниця скільки є розкладів і скільки може бути
-# мутації - додати ще 2  ( прибрати будь яке заняття , додати будь яке заняття в розклад ( будь який предмет і тд і засунути в розклад))

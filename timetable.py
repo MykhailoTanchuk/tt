@@ -51,19 +51,12 @@ class Timetable:
 
     def _create_study_session(self, course: Course, group: StudentGroup) -> None:
         # Створює та додає новий клас (заняття) до розкладу для вказаного курсу та групи студентів.
+        # Визначення списку всіх доступних викладачів для призначення.
+        suitable_teachers = self.data.teachers
 
-        # 1. Визначення списку викладачів, які можуть викладати цей курс.
-        # Пошук викладачів, які мають кваліфікацію для викладання зазначеного курсу.
-        suitable_teachers = [
-            teacher for teacher in self.data.teachers
-            if teacher.can_teach(course.number)
-        ]
-
-        # 2. Перевірка наявності відповідних викладачів.
-        # Якщо немає викладачів, які можуть вести курс, виводимо повідомлення і завершуємо функцію.
         if not suitable_teachers:
             print(
-                f"Немає підходящих викладачів, які можуть вести курс '{course.name}' ({course.number}) у групі '{group.name}'")
+                f"Немає доступних викладачів для курсу '{course.name}' ({course.number}) у групі '{group.name}'")
             return
 
         # 3. Призначення випадкових значень для часу проведення, викладача та аудиторії.
@@ -204,29 +197,49 @@ class Timetable:
         return balance_penalty
 
     def calculate_fitness(self) -> float:
-        # Розраховує фітнес розкладу, щоб оцінити його оптимальність.
+        """
+        Розраховує фітнес розкладу, щоб оцінити його оптимальність.
+        Додає пенальті за неправильну кількість годин для кожного курсу в кожній групі.
+        """
 
-        # 1. Оновлюємо кількість конфліктів у розкладі та обчислюємо штраф за "вікна".
+        # 1. Оновлюємо кількість конфліктів у розкладі та обчислюємо штраф за "вікна" і обмеження для викладачів.
         number_of_conflicts = self._calculate_conflicts()
         gaps_penalty = self._calculate_gaps_penalty()
+        teacher_constraints_penalty = self.calculate_teacher_constraints_penalty()
 
-        # 2. Вибір метрики для розрахунку фітнесу.
-        # Якщо функція приспособленості встановлена як "conflicts", обчислюємо фітнес лише на основі конфліктів.
+        # Додатковий штраф за неправильну кількість годин
+        hours_penalty = 0
+
+        # Перевіряємо кожну групу і курс, обчислюючи фактичну кількість годин для кожного курсу в розкладі
+        for group in self.data.groups:
+            group_sessions = [
+                session for session in self.study_sessions if session.student_group.id == group.id
+            ]
+            for course in group.courses:
+                # Отримуємо потрібну кількість годин із CSV (визначено в атрибуті course.hours_per_week)
+                required_hours = course.hours_per_week
+                # Розраховуємо фактичну кількість занять для цього курсу
+                actual_sessions = sum(1 for session in group_sessions if session.course.number == course.number)
+                # Розраховуємо фактичну кількість годин у розкладі для цього курсу
+                actual_hours = actual_sessions  # Розрахунок для годин залежно від тривалості заняття
+
+                # Додаємо модуль різниці між фактичною і необхідною кількістю годин до пенальті
+                hours_penalty += abs(actual_hours - required_hours)
+
+        # 2. Вибір метрики для розрахунку фітнесу
         if self.data.fitness_function == "conflicts":
             self.conflicts_count = number_of_conflicts
-            return 1 / (1.0 * (number_of_conflicts + 1))
+            return 1 / (1.0 * (number_of_conflicts + hours_penalty + 1))
 
-        # Якщо функція фітнесу "gaps", то враховуємо тільки "вікна".
         elif self.data.fitness_function == "gaps":
-            return 1 / (1.0 * (gaps_penalty + 1))
+            return 1 / (1.0 * (gaps_penalty + hours_penalty + 1))
 
-        # Якщо використовується комбінована функція фітнесу, враховуємо всі параметри.
         elif self.data.fitness_function == "combined":
             balance_penalty = self._calculate_balance_penalty()
             self.conflicts_count = number_of_conflicts + gaps_penalty
 
-            # Розрахунок загального фітнесу з урахуванням різних штрафів.
-            fitness = 1 / (1.0 * (self.conflicts_count + 1))
+            # Розрахунок загального фітнесу з урахуванням різних штрафів
+            fitness = 1 / (1.0 * (self.conflicts_count + hours_penalty + teacher_constraints_penalty + 1))
             fitness -= gaps_penalty * 0.01
             fitness -= balance_penalty * 0.1
 
@@ -329,3 +342,32 @@ class Timetable:
         fitness -= balance_penalty * 0.1  # Враховуємо штраф за незбалансованість.
 
         return fitness
+
+    def calculate_teacher_constraints_penalty(self) -> int:
+        penalty = 0
+        teacher_hours = {teacher.id: 0 for teacher in
+                         self.data.teachers}  # Словник для підрахунку годин кожного викладача
+
+        for session in self.study_sessions:
+            teacher = session.teacher
+            course = session.course
+
+            # Перевірка, чи існують обмеження для викладача в `data.teachers_restrictions`
+            if teacher.id not in self.data.teachers_restrictions:
+                continue  # Пропускаємо викладача, якщо немає обмежень
+
+            teacher_restrictions = self.data.teachers_restrictions[teacher.id]
+
+            # 1. Перевірка, чи курс дозволений для викладача
+            if course.number not in teacher_restrictions["allowed_courses"]:
+                penalty += 1  # Додаємо штраф, якщо курс не дозволений
+
+            # 2. Додавання фактичних годин для викладача
+            # Додаємо години цього заняття
+            teacher_hours[teacher.id] += 1  # Збільшуємо годину на кожне заняття
+
+            # 3. Перевірка на перевищення максимального навантаження
+            if teacher_hours[teacher.id] > teacher_restrictions["max_hours_per_week"]:
+                penalty += 1  # Додаємо штраф за перевищення годинного обмеження
+
+        return penalty

@@ -2,7 +2,7 @@
 
 from typing import List
 from models import StudySession, Course, Teacher, TimeSlot, Classroom, StudentGroup
-from user_data.extract_data import load_classrooms_from_csv,load_groups_from_csv,load_courses_from_csv,load_teachers_from_csv,load_time_slots_from_csv
+from user_data.extract_data import load_classrooms_from_csv,load_groups_from_csv,load_courses_from_csv,load_teachers_from_csv,load_time_slots_from_csv,load_teacher_constraints_from_csv
 
 class Data:
     def __init__(self, fitness_function: str = "conflicts"):
@@ -13,16 +13,20 @@ class Data:
         self.groups: List[StudentGroup] = []
         self.time_slots: List[TimeSlot] = []
         self.number_of_classes: int = 0
+        self.teachers_restrictions = {}
+
 
         self.initialize()
 
     def initialize(self):
         self.classrooms = load_classrooms_from_csv('user_data/classrooms.csv')
         self.teachers = load_teachers_from_csv('user_data/teachers.csv')
-        self.courses = load_courses_from_csv('user_data/courses.csv')
+        self.courses = load_courses_from_csv('user_data/courses_copy.csv')
         self.groups = load_groups_from_csv('user_data/groups.csv', self.courses)
         self.time_slots = load_time_slots_from_csv('user_data/time_slots.csv')
         self.number_of_classes = sum(len(group.courses) for group in self.groups)
+        self.teachers_restrictions = load_teacher_constraints_from_csv(
+            'user_data/teachers.csv')  # Завантаження обмежень
 
     def create_classrooms(self) -> List[Classroom]:
         return [
