@@ -1,0 +1,12 @@
+number,name,max_number_of_students,course_type
+1,TPR,100,lecture
+2,TPR,30,lab
+3,StatMod,100,lecture
+4,IntSys,100,lecture
+5,IntSys,30,lab
+6,IT,100,lecture
+7,IT,30,lab
+8,Angl,100,lecture
+9,SklAlg,100,lecture
+10,Lingv,50,lecture
+11,Lingv,30,lab
